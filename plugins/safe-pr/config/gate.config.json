@@ -1,0 +1,42 @@
+{
+  "_comment": "Dev-tunable fences and numbers for the safe-pr deterministic gate. NOT a risk map — these are hard limits and deny-list globs only. Numbers are starting guesses; tune against real PRs. A repo-level override file (.safe-pr.config.json at the target repo root) is merged on top when present.",
+  "denylist_globs": [
+    "**/migrations/**",
+    "**/migrate/**",
+    ".github/**",
+    "**/*.config.*",
+    "**/.env*",
+    "**/secrets/**",
+    "**/secret/**",
+    "package.json",
+    "**/package.json",
+    "yarn.lock",
+    "**/yarn.lock",
+    "package-lock.json",
+    "**/package-lock.json",
+    "pnpm-lock.yaml",
+    "**/pnpm-lock.yaml",
+    "Gemfile",
+    "Gemfile.lock",
+    "go.mod",
+    "go.sum",
+    "requirements.txt",
+    "Pipfile",
+    "Pipfile.lock",
+    "poetry.lock",
+    "**/Dockerfile",
+    "**/Dockerfile.*",
+    "**/*.tf",
+    "**/*.tfvars"
+  ],
+  "branch_naming": {
+    "_comment": "Branch must start with a Jira ticket id, e.g. DEV-12345_some-logical-name. ticket_regex validates the id the operator provides; branch_regex is what an already-created branch must match.",
+    "ticket_regex": "^[A-Z][A-Z0-9]+-[0-9]+$",
+    "branch_regex": "^[A-Z][A-Z0-9]+-[0-9]+_"
+  },
+  "max_files": 8,
+  "max_loc": 150,
+  "ci_stability_polls": 3,
+  "ci_poll_interval_seconds": 15,
+  "ci_max_total_seconds": 1800
+}

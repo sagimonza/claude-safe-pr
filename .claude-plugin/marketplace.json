@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-non-dev-pr",
+  "description": "Plugins that guide non-developers through shipping small, low-risk changes safely.",
+  "owner": { "name": "sagimonza" },
+  "plugins": [
+    {
+      "name": "safe-pr",
+      "source": "./plugins/safe-pr",
+      "description": "Guides a non-developer (UX, PM, CS, …) through producing a small, low-risk pull request — content, styling, or a tightly-bounded tweak — gated by a deterministic safety checker and LLM risk assessment, for a developer to review.",
+      "version": "0.10.0"
+    }
+  ]
+}
