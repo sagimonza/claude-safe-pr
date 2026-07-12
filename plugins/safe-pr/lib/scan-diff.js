@@ -5,11 +5,38 @@
 
 import { matchesAnyGlob } from './glob.js';
 
+// Code-side defaults for the split-ceiling classification. The canonical values
+// live in config/gate.config.json (repo-overridable via .safe-pr.config.json);
+// these are the safety net used when scanDiff is called with a config that omits
+// the new keys. Keep DEFAULT_TEST_GLOBS in sync with gate.config.json's list.
+// The vendored glob engine (lib/glob.js) has NO brace expansion, so each
+// alternative is its own entry; tokens are delimiter-anchored so `*Spec.*`
+// matches `FooSpec.ts` but not `Special.tsx`.
+export const DEFAULT_TEST_GLOBS = [
+  '**/*.spec.*',
+  '**/*.test.*',
+  '**/*_spec.*',
+  '**/*_test.*',
+  '**/*Spec.*',
+  '**/*Test.*',
+  '**/__tests__/**',
+  '**/__mocks__/**',
+  '**/e2e/**',
+  '**/cypress/**',
+  '**/playwright/**',
+];
+const DEFAULT_MAX_TEST_LOC = 150;
+
+/**
+ * @typedef {'product' | 'test' | 'shared'} FileKind
+ */
+
 /**
  * @typedef {Object} PerFile
  * @property {string} path
  * @property {number} added
  * @property {number} removed
+ * @property {FileKind} [kind]
  */
 
 /**
@@ -26,8 +53,12 @@ import { matchesAnyGlob } from './glob.js';
  * @property {number} loc_added
  * @property {number} loc_removed
  * @property {number} loc_total
+ * @property {number} product_loc
+ * @property {number} test_loc
  * @property {number} max_files
  * @property {number} max_loc
+ * @property {number} max_test_loc
+ * @property {string[]} ceiling_breaches
  * @property {boolean} over_ceiling
  * @property {boolean} hard_fail
  * @property {PerFile[]} per_file
@@ -66,12 +97,37 @@ export function parseNumstat(text) {
  */
 
 /**
- * Compute deny-list hits, counts, ceiling breach, and hard-fail flag.
+ * Classify a changed file as product / test / shared.
+ *
+ * A file matching a `test_globs` entry is **test**; otherwise it is **product**
+ * (product = not-test by default). When `product_globs` is configured, a file
+ * matching **both** lists is **shared** — its LOC counts toward both budgets
+ * (conservative: a dual-purpose file, e.g. a fixtures module imported by product
+ * code, never dodges either ceiling). This is per-file/glob-based, never a
+ * per-line split of a file that mixes product and test code.
+ * @param {string} path
+ * @param {string[]} testGlobs
+ * @param {string[]} productGlobs
+ * @returns {FileKind}
+ */
+function classifyFile(path, testGlobs, productGlobs) {
+  const isTest = matchesAnyGlob(path, testGlobs) !== null;
+  // product = not-test, PLUS any test-matching file the repo explicitly lists in
+  // product_globs (that file becomes shared). No LOC is ever dropped.
+  const isProduct = !isTest || (productGlobs.length > 0 && matchesAnyGlob(path, productGlobs) !== null);
+  if (isTest && isProduct) return 'shared';
+  return isTest ? 'test' : 'product';
+}
+
+/**
+ * Compute deny-list hits, counts, split-ceiling breach, and hard-fail flag.
  * @param {ScanDiffInput} input
  * @returns {ScanDiffResult}
  */
 export function scanDiff({ nameOnly, numstat, config, baseRef }) {
   const globs = config.denylist_globs || [];
+  const testGlobs = config.test_globs || DEFAULT_TEST_GLOBS;
+  const productGlobs = config.product_globs || [];
 
   /** @type {DenyHit[]} */
   const deny_hits = [];
@@ -81,19 +137,35 @@ export function scanDiff({ nameOnly, numstat, config, baseRef }) {
     if (matched) deny_hits.push({ path: f, matched_glob: matched });
   }
 
-  const perFile = typeof numstat === 'string' ? parseNumstat(numstat) : numstat;
+  const parsed = typeof numstat === 'string' ? parseNumstat(numstat) : numstat;
   let loc_added = 0;
   let loc_removed = 0;
-  for (const row of perFile) {
+  let product_loc = 0;
+  let test_loc = 0;
+  /** @type {PerFile[]} */
+  const perFile = [];
+  for (const row of parsed) {
     loc_added += row.added;
     loc_removed += row.removed;
+    const kind = classifyFile(row.path, testGlobs, productGlobs);
+    const loc = row.added + row.removed;
+    if (kind === 'product' || kind === 'shared') product_loc += loc;
+    if (kind === 'test' || kind === 'shared') test_loc += loc;
+    perFile.push({ ...row, kind });
   }
 
   const files_changed = nameOnly.filter((f) => !!f).length;
   const loc_total = loc_added + loc_removed;
   const max_files = config.max_files;
-  const max_loc = config.max_loc;
-  const over_ceiling = files_changed > max_files || loc_total > max_loc;
+  const max_loc = config.max_loc; // now the PRODUCT (non-test) LOC ceiling
+  const max_test_loc = config.max_test_loc ?? DEFAULT_MAX_TEST_LOC;
+
+  /** @type {string[]} */
+  const ceiling_breaches = [];
+  if (files_changed > max_files) ceiling_breaches.push('files_changed');
+  if (product_loc > max_loc) ceiling_breaches.push('product_loc');
+  if (test_loc > max_test_loc) ceiling_breaches.push('test_loc');
+  const over_ceiling = ceiling_breaches.length > 0;
   const hard_fail = deny_hits.length > 0 || over_ceiling;
 
   return {
@@ -103,8 +175,12 @@ export function scanDiff({ nameOnly, numstat, config, baseRef }) {
     loc_added,
     loc_removed,
     loc_total,
+    product_loc,
+    test_loc,
     max_files,
     max_loc,
+    max_test_loc,
+    ceiling_breaches,
     over_ceiling,
     hard_fail,
     per_file: perFile,

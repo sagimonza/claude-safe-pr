@@ -66,6 +66,14 @@ every guardrail**:
 If it clears all of those, it's a Gate-1 **Yellow at worst**, not an automatic Red. If it misses
 even one, treat it as rippling logic and **STOP** — hand off.
 
+## Tests are cross-cutting, not a fourth section
+
+Any of the three change natures above may warrant a test — a presentational tweak in a
+snapshot-tested area, a content string an assertion checks, a bounded change in a spec'd flow. Tests
+are therefore **not a catalog section**; they are handled at the **Tests step**, governed by
+[`tests.md`](tests.md). Authoring stays **inside test files** (`*.spec.*` / `*.test.*` /
+`__tests__/`); test **config** (Playwright/Jest config, CI, `package.json`) is deny-listed → hand off.
+
 ## Changes that span sections
 
 Apply the **union** of the relevant catalogs and the **strictest** verifiability standard

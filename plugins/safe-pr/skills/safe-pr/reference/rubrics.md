@@ -58,8 +58,12 @@ the score.
 
 ## Complexity
 
-**Gather:** files changed and LOC (**from Layer A — quote it**); did it touch
-logic/state/control-flow or only presentation (CSS/copy/static props)? New deps? New
+**Gather:** files changed and LOC (**from Layer A — quote it**). Layer A now reports **product-LOC
+and test-LOC separately** (`product_loc` / `test_loc`, each with its own ceiling) — **quote both**.
+Test LOC is judged against its **own** ceiling (`max_test_loc`), so a normal-sized additive spec no
+longer inflates the product budget; but **new test abstraction/fixtures/page-objects = Red** (see
+`tests.md`), and either ceiling tripping (`over_ceiling` / `hard_fail`) is still an automatic stop.
+Did it touch logic/state/control-flow or only presentation (CSS/copy/static props)? New deps? New
 abstraction/pattern introduced? If it touches state, is it **contained** (one localized site,
 reversible, no new abstraction) or **rippling** (changes control flow/timing or logic other code
 depends on)?
@@ -78,9 +82,11 @@ A large content diff that is purely text is far less complex than the same LOC o
 
 ## Confidence (how sure nothing breaks)
 
-**Gather:** Do tests exist around the touched code? Did CI pass (**Layer A `ci-status`**)? How many
-*existing* tests had to be **adjusted**? Was the regression checklist actually verified in the
-verification loop? **And how easy is it to confirm no regression at all** — see below.
+**Gather:** Do tests exist around the touched code? **Does the repo convention expect a test for this
+change** (from the Gate-1 detection), and was it **added/adjusted and made green** (at the Tests
+step)? Did CI pass (**Layer A `ci-status`**)? How many *existing* tests had to be **adjusted**? Was
+the regression checklist actually verified in the verification loop? **And how easy is it to confirm
+no regression at all** — see below.
 
 **Verifiability (ease of confirming no regression) — method-neutral.** Coverage isn't the only way
 to be confident; *a change a human can fully **observe** by exercising it is safer than one that fails
@@ -104,6 +110,12 @@ off-screen flow with no observable signal)?
 - **Red:** no coverage **and** failure modes are silent / not observable by any available method, OR
   many existing tests adjusted (the change is bigger than a "small, bounded fix"), OR CI failing, OR
   couldn't verify.
+
+**Expected-coverage cap (from the Gate-1 detection + the Tests step).** A **behavioral** change in an
+area the repo convention **expects a test** for, that **skipped** that expected test, caps at
+**Yellow at best** — flag the reviewer to add coverage; it goes **Red** if the untested behavior can
+also **fail silently**. A copy-only change with **no asserting test** is unaffected — it remains
+eligible for **Green**. (A test that *was* added/adjusted and is green in CI supports Green as usual.)
 
 > **"Tests adjusted" is a contradiction-detector:** a genuine small, bounded fix shouldn't require
 > rewriting much established behavior. A high adjust-count pulls down BOTH Confidence and Risk.
@@ -206,3 +218,22 @@ context).
   `count: 2`, wrong for `count: 1` or locale-specific plural forms the operator won't exercise). The
   placeholder/pluralization trap means a failure mode nothing on the tested path reveals. → STOP and
   hand off (a developer with the i18n framework should own the plural rule).
+
+**Example J — honoring the repo's test convention (Green/Yellow), and its "too large" boundary
+(Red).** A `cbms-ui`-style app where **every page ships a Playwright spec run against mocked
+endpoints**. The change: a small UI tweak to one page (e.g. add an empty-state message to a list).
+- **Gate 1 test expectation:** `{expected: yes, kind: e2e/playwright, evidence: "sibling
+  Orders.spec.ts; every page under src/pages has a colocated spec", run-command: "npx playwright test
+  orders"}`.
+- **Tests step:** author `Orders.spec.ts` coverage for the empty state, mirroring the existing
+  mocked-endpoint pattern; run the touched spec locally → green.
+- Complexity: **Green/Yellow** — Layer A: `product_loc: 6`, `test_loc: 70` (each under its own
+  ceiling — the 70-line spec doesn't touch the product budget); no new abstraction, reused the
+  repo's existing fixtures/mocks.
+- Confidence: **Green** — the expected test was added and is green in CI; operator also verified the
+  empty state in the running app.
+- Overall: **Green** → proceed. Had the operator **skipped** the expected spec, Confidence would cap
+  at **Yellow** (flag the reviewer to add coverage).
+- **Contrast — Red variant:** the same change on a page that has **no** page-object/mock harness yet,
+  so covering it needs a **new page-object and mock fixtures the repo doesn't provide**. That is new
+  test abstraction → **Complexity Red → hand off** (the area isn't ergonomic for a non-dev change).

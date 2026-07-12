@@ -1,5 +1,5 @@
 {
-  "_comment": "Dev-tunable fences and numbers for the safe-pr deterministic gate. NOT a risk map — these are hard limits and deny-list globs only. Numbers are starting guesses; tune against real PRs. A repo-level override file (.safe-pr.config.json at the target repo root) is merged on top when present.",
+  "_comment": "Dev-tunable fences and numbers for the safe-pr deterministic gate. NOT a risk map — these are hard limits and deny-list globs only. Numbers are starting guesses; tune against real PRs. A repo-level override file (.safe-pr.config.json at the target repo root) is merged on top when present. The LOC ceiling is SPLIT: max_loc is the PRODUCT (non-test) LOC ceiling and max_test_loc is the TEST LOC ceiling, so a small product change plus its expected test spec doesn't spuriously trip. test_globs classifies each changed file (a match => test LOC, else product LOC); over_ceiling trips on either budget. product_globs (unset by default) marks test-matching files that are ALSO product (shared => counted toward both budgets).",
   "denylist_globs": [
     "**/migrations/**",
     "**/migrate/**",
@@ -36,6 +36,20 @@
   },
   "max_files": 8,
   "max_loc": 150,
+  "max_test_loc": 150,
+  "test_globs": [
+    "**/*.spec.*",
+    "**/*.test.*",
+    "**/*_spec.*",
+    "**/*_test.*",
+    "**/*Spec.*",
+    "**/*Test.*",
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/e2e/**",
+    "**/cypress/**",
+    "**/playwright/**"
+  ],
   "ci_stability_polls": 3,
   "ci_poll_interval_seconds": 15,
   "ci_max_total_seconds": 1800

@@ -5,7 +5,9 @@ CS, …) through producing a small, low-risk pull request — **content** (docs,
 message strings), **styling** (copy, color, spacing, sizing, simple style props, icon swaps), or a
 **tightly-bounded, hand-verifiable tweak** (e.g. remembering the last-open tab) — that a developer
 then reviews. It runs a deterministic safety gate plus an LLM risk/complexity/confidence assessment,
-builds a targeted regression checklist, and only marks the PR ready-for-review when the gates pass.
+builds a targeted regression checklist, and — where the repo covers changes like this with tests —
+authors or adjusts the test and runs it to green, only marking the PR ready-for-review when the gates
+pass.
 
 The shippable set is defined by two invariants, not by change category: a change qualifies only when
 its **blast radius is bounded** and it is **hand-verifiable** (the operator can observe both that it
@@ -28,8 +30,8 @@ lives under `plugins/safe-pr/`:
 ```
 plugins/safe-pr/
 ├── .claude-plugin/plugin.json   # manifest
-├── skills/safe-pr/SKILL.md      # entry point + guided-flow wizard spine (Steps 0–11)
-│   └── reference/               # triggered reads: change catalog, rubrics, gate CLI, deny-list + handoff
+├── skills/safe-pr/SKILL.md      # entry point + guided-flow wizard spine (Steps 0–12)
+│   └── reference/               # triggered reads: change catalog, rubrics, tests, gate CLI, deny-list + handoff
 ├── bin/pr-gate.js               # Layer A: deterministic checker (ground truth)
 ├── lib/                         # pure logic (unit-tested) + thin git/gh I/O seams
 ├── test/                        # node:test suite (no devDependencies)
@@ -69,7 +71,7 @@ Run standalone for testing:
 node bin/pr-gate.js preflight                  # tree/branch/base/gh readiness + branch convention
 node bin/pr-gate.js new-branch DEV-12345 <name># validate Jira id, build a convention branch name
 node bin/pr-gate.js check-paths <path...>      # deny-list pre-check for files about to be edited
-node bin/pr-gate.js scan-diff [base_ref]       # deny-list hits, file/LOC counts, ceiling check
+node bin/pr-gate.js scan-diff [base_ref]       # deny-list hits, file/LOC counts, split-ceiling check
 node bin/pr-gate.js ci-status <pr-number>      # stability-aware CI read
 node bin/pr-gate.js config                     # dump the effective merged config
 node bin/pr-gate.js help                       # print usage and exit 0 (safe to probe)

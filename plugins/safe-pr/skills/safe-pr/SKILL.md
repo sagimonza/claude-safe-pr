@@ -1,6 +1,6 @@
 ---
 name: safe-pr
-description: Guide a non-developer (UX, PM, CS, …) through making a small, low-risk change — user-facing copy/content, styling, or a tightly-bounded tweak — and turning it into a pull request a developer reviews. Runs a deterministic safety gate plus a risk/complexity/confidence assessment, builds a targeted regression checklist, and only marks the PR ready-for-review when the gates pass. Use when a non-developer wants to safely ship a small, bounded, hand-verifiable change.
+description: Guide a non-developer (UX, PM, CS, …) through making a small, low-risk change — user-facing copy/content, styling, or a tightly-bounded tweak — and turning it into a pull request a developer reviews. Runs a deterministic safety gate plus a risk/complexity/confidence assessment, builds a targeted regression checklist, and — where the repo covers changes like this with tests — authors or adjusts the test and runs it to green, only marking the PR ready-for-review when the gates pass. Use when a non-developer wants to safely ship a small, bounded, hand-verifiable change.
 ---
 
 # safe-pr — guide a non-developer to a safe, small pull request
@@ -45,7 +45,7 @@ those paths look wrong or the file isn't there, resolve once with
 
 This skill is a **track to run, not an essay to absorb.** Obey these four rules:
 
-1. **One linear track, no skipping.** Run Steps 0 → 11 in order. Anything a step needs that isn't
+1. **One linear track, no skipping.** Run Steps 0 → 12 in order. Anything a step needs that isn't
    an action is a **triggered read** of a `reference/` file *at that step* — read it then, not
    ahead. Never advance on the strength of "it's just a one-liner."
 2. **Uniform step shape.** Each step below is written as **Do / Done when / STOP if / Tell the
@@ -55,14 +55,15 @@ This skill is a **track to run, not an essay to absorb.** Obey these four rules:
    URL. No artifact → not done → you may not advance. Your own judgment that "it's fine" is not an
    artifact.
 4. **Re-emit the progress checklist every turn.** At the top of each of your turns, reprint the
-   full step list (0–11) with `[x]`/`[ ]` and mark the current step, e.g.:
+   full step list (0–12) with `[x]`/`[ ]` and mark the current step, e.g.:
 
    ```
    safe-pr progress
-   [x] 0  pre-flight           [ ] 4  Gate 1: plan       [ ] 8  draft PR
-   [x] 1  ticket + branch      [ ] 5  execute            [ ] 9  Gate 2: diff
-   [ ] 2  describe + evidence  [ ] 6  regression list    [ ] 10 verdict
-   [ ] 3  confirm spec         [ ] 7  verify loop        [ ] 11 mark ready
+   [x] 0  pre-flight           [ ] 5  execute            [ ] 10 Gate 2: diff
+   [x] 1  ticket + branch      [ ] 6  tests              [ ] 11 verdict
+   [ ] 2  describe + evidence  [ ] 7  regression list    [ ] 12 mark ready
+   [ ] 3  confirm spec         [ ] 8  verify loop
+   [ ] 4  Gate 1: plan         [ ] 9  draft PR
    ← you are here: 4  Gate 1: plan
    ```
 
@@ -130,11 +131,15 @@ catalog applied at Execute, the blast-radius mapping at the regression checklist
 verification method at the verification loop. State it the way the operator already confirms it
 ("this is a wording change to the help article" / "a small styling tweak" / "a tightly-bounded
 default change"), never as jargon. If a change spans sections, apply the union and the strictest
-verifiability standard. **There is no Layer A command at this stage** (no diff exists) — do not run
+verifiability standard. Also determine the repo's **test expectation** for this change and cite the
+evidence — does the repo conventionally cover changes like this with a test? (This feeds the
+preliminary Confidence score; the detection heuristics live in [`reference/tests.md`](reference/tests.md),
+read at the Tests step.) **There is no Layer A command at this stage** (no diff exists) — do not run
 or probe the gate here; Gate 1 is pure Layer B reasoning.
 **Done when:** the written plan **and** a full 3-axis scorecard (Risk/Complexity/Confidence, each
-Red/Yellow/Green with cited evidence) **and** a one-sentence worst-axis verdict are in the
-conversation.
+Red/Yellow/Green with cited evidence) **and** a one-sentence worst-axis verdict **and** the test
+expectation — `{expected: yes | no, kind: e2e/playwright | unit | snapshot | none, evidence: …,
+run-command: …}` — are in the conversation.
 **STOP if:** aggregate is **Red** — don't write code; read [`reference/handoff.md`](reference/handoff.md)
 and produce a developer handoff. A non-dev can never override a Red. Even an obvious rejection goes
 **through the scorecard**, and score the *change*, not the file or the category: a change with
@@ -153,8 +158,9 @@ and produce a developer handoff. This is the deterministic fence that keeps you 
 the diff scan at Gate 2 is the backstop, not the first line.
 Then read [`reference/change-catalog.md`](reference/change-catalog.md) **now** and implement the
 change staying inside the catalog section named in the plan — presentational, content, or the
-tightly-bounded-change allowance — respecting that section's guardrails and verification method. Add
-tests only if natural and additive. The bounded-change allowance is a Gate-1 **Yellow at worst**
+tightly-bounded-change allowance — respecting that section's guardrails and verification method.
+Implement only the product change here; authoring/adjusting the tests the repo expects happens at the
+next step (Tests). The bounded-change allowance is a Gate-1 **Yellow at worst**
 only if it clears **every** guardrail in the catalog (one localized site, self-contained, no new
 abstraction/control-flow/data/component, reversible and fully hand-verifiable); if it misses even
 one, treat it as rippling logic and **STOP**.
@@ -167,7 +173,28 @@ adjusting many existing tests, the change is bigger than a small, bounded fix �
 Confidence and Risk; reconsider and likely hand off.
 **Tell the operator:** in one plain sentence, what you changed.
 
-### Step 6 — Blast-radius → regression checklist
+### Step 6 — Tests: honor the repo's convention   [GATE]
+**Do:** Read [`reference/tests.md`](reference/tests.md) **now.** Using the test expectation recorded
+at Gate 1:
+  1. **If a test is expected**, author the new test or adjust the existing one **inside test files
+     only** (`*.spec.*` / `*.test.*` / `__tests__/`), mirroring the repo's existing pattern for
+     changes like this. Then run the **relevant** tests locally to green (lowest-effort subset — the
+     touched spec and its neighbours — the way the verification loop runs just the affected surface;
+     the full suite is confirmed by CI at Gate 2).
+  2. **If no test is expected** (e.g. pure copy no test asserts, or the repo has no convention for
+     this surface), record that finding **with its cited reason**.
+**Done when:** the conversation holds **either** (the test diff **and** a quoted local run showing
+green) **or** an explicit, evidence-backed "no test expected because …". Track which tests were
+added vs. adjusted — it feeds the Confidence axis.
+**STOP if:** making the expected tests green requires editing **test config / CI / `package.json`**
+(deny-list → hand off); requires **new fixtures/mocks/page-objects/abstractions** the repo doesn't
+already provide (new abstraction → Complexity Red → hand off); or you find yourself **adjusting many
+existing tests** (contradiction-detector → the change isn't small → hand off). Read
+[`reference/handoff.md`](reference/handoff.md) on any STOP.
+**Tell the operator:** in one plain sentence, whether you added/adjusted a test and that it passes —
+or that this change isn't the kind the project tests, and why.
+
+### Step 7 — Blast-radius → regression checklist
 **Do:** Reuse the **same consumer analysis** as the Risk axis (don't compute it twice). A "consumer"
 is any site the change can surface at: for UI, an importer/render site of the component; for content,
 a render/usage site of the string or doc (the flows that display it):
@@ -183,8 +210,10 @@ a render/usage site of the string or doc (the flows that display it):
 **Risk = Red → STOP**, not a giant checklist (proportionality rule).
 **Tell the operator:** in one plain sentence, what they'll need to check.
 
-### Step 7 — Verification loop
-**Do:** Find the **easiest path** for this operator to observe the change by the **method the catalog
+### Step 8 — Verification loop
+**Do:** Automated coverage (the tests you made green at the Tests step) and this manual satisfaction
+loop are **two legs** — this loop confirms the change *came out right* to a human eye; it does not
+replace the automated check. Find the **easiest path** for this operator to observe the change by the **method the catalog
 prescribes for this change** — run the app and look at the surface (presentational), render/preview
 the output and read it in context (content), or exercise the exact path by hand (bounded change) —
 and set it up with them. Read the repo's `CLAUDE.md` (and any run/dev docs) to learn how the app is
@@ -201,7 +230,7 @@ change** by its method (track which were really verified — this feeds the Conf
 "it looks great" talk you past a safety Red.
 **Tell the operator:** in one plain sentence, what's confirmed and what's left to check.
 
-### Step 8 — Draft PR
+### Step 9 — Draft PR
 **Do:** Push the branch and open a **draft** PR, building the body from `<PLUGIN>/templates/pr-body.md`
 (read it with the resolved `PLUGIN_DIR` path) and filling **every** placeholder:
 ```
@@ -213,15 +242,20 @@ gh pr create --draft --title "<plain title>" --body-file <filled-body.md>
 required. The PR stays draft until Gate 2 passes and you mark it ready at the mark-ready step.
 **Tell the operator:** in one plain sentence, that a draft PR is open for the safety checks.
 
-### Step 9 — Gate 2: assess the DIFF   [GATE]
+### Step 10 — Gate 2: assess the DIFF   [GATE]
 **Do:**
   1. **Layer A:** run `node "<GATE>" scan-diff` on the real diff; quote the numbers.
   2. **Layer A:** run `node "<GATE>" ci-status <pr>` and **wait for a STABLE green** — see the CI
      semantics in [`reference/gate-cli.md`](reference/gate-cli.md) (checks appear dynamically, so a
      single read is wrong).
   3. **Layer B:** re-score all three axes on the real diff (read [`reference/rubrics.md`](reference/rubrics.md)
-     again if needed). Confidence now folds in the CI result and whether the checklist was actually
-     verified in the verification loop. Take the **worst-signal** verdict.
+     again if needed). Confidence now folds in the CI result, whether the checklist was actually
+     verified in the verification loop, **and whether the tests the repo convention expects were
+     actually added/adjusted and are green in CI** — a behavioral change that skipped an expected
+     test is **Yellow at best** (flag the reviewer to add coverage), or **Red** if that untested
+     behavior can also fail silently; copy-only with no asserting test remains eligible for Green.
+     Complexity now reads **product-LOC and test-LOC separately** from `scan-diff` (quote both). Take
+     the **worst-signal** verdict.
 **Done when:** quoted `scan-diff` JSON (no `deny_hits`, not `over_ceiling`, not `hard_fail: true`)
 **and** quoted `ci-status` showing stable green **and** the re-scored 3-axis scorecard are all in
 the conversation.
@@ -230,7 +264,7 @@ when you made changes → apply the **Layer A failure rule** (stop, diagnose, do
 stable-green → treat per the CI semantics.
 **Tell the operator:** in one plain sentence, what the safety scan and CI showed.
 
-### Step 10 — Verdict
+### Step 11 — Verdict
 **Do:** Aggregate the Gate 2 scorecard worst-axis and act on it.
 **Done when:** a stated verdict exists: **Red** → mark PR **NOT ready** and produce the developer
 handoff (confirmed spec + diff + failing evidence — [`reference/handoff.md`](reference/handoff.md));
@@ -239,7 +273,7 @@ labels exist, else note it prominently in the body); **Green** → proceed.
 **STOP if:** Red — do not proceed to the mark-ready step; leave any PR as a **draft**.
 **Tell the operator:** in one plain sentence, the verdict and what happens next.
 
-### Step 11 — Mark ready
+### Step 12 — Mark ready
 **Do:**
   1. Flip the draft to ready: `gh pr ready <pr>`.
   2. **RE-RUN** `node "<GATE>" ci-status <pr>` — un-drafting can trigger new workflows, so confirm a

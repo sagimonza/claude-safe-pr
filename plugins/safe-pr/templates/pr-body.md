@@ -24,6 +24,11 @@
 
 {{VERIFIED_EVIDENCE}}
 
+**Automated coverage:** test(s) added/adjusted (with paths) and their CI status, **or** an explicit
+"no test added" with the cited reason.
+
+{{TEST_COVERAGE}}
+
 ## 3. Assessment scorecard
 
 > Worst-signal wins. Every rating is justified by cited facts gathered before the score
@@ -39,7 +44,9 @@
 **Layer A facts (deterministic, from `pr-gate.js`):**
 
 - Files changed: {{FILES_CHANGED}} (ceiling {{MAX_FILES}})
-- LOC changed: {{LOC_TOTAL}} (+{{LOC_ADDED}} / -{{LOC_REMOVED}}, ceiling {{MAX_LOC}})
+- Product LOC: {{PRODUCT_LOC}} (ceiling {{MAX_LOC}})
+- Test LOC: {{TEST_LOC}} (ceiling {{MAX_TEST_LOC}})
+- Total LOC changed: {{LOC_TOTAL}} (+{{LOC_ADDED}} / -{{LOC_REMOVED}})
 - Deny-list hits: {{DENY_HITS}}
 - CI at assessment time: {{CI_SUMMARY}}
 
