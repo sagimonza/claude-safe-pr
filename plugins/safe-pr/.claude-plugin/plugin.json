@@ -1,6 +1,6 @@
 {
   "name": "safe-pr",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Guides a non-developer (UX, PM, CS, …) through producing a small, low-risk pull request — content, styling, or a tightly-bounded tweak — gated by a deterministic safety checker and LLM risk assessment, and, where the repo covers changes like this with tests, authoring or adjusting the test and running it to green, for a developer to review.",
   "author": {
     "name": "sagimonza"

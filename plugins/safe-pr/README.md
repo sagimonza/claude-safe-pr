@@ -30,7 +30,7 @@ lives under `plugins/safe-pr/`:
 ```
 plugins/safe-pr/
 ├── .claude-plugin/plugin.json   # manifest
-├── skills/safe-pr/SKILL.md      # entry point + guided-flow wizard spine (Steps 0–12)
+├── skills/safe-pr/SKILL.md      # entry point + guided-flow wizard spine (Steps 0–13)
 │   └── reference/               # triggered reads: change catalog, rubrics, tests, gate CLI, deny-list + handoff
 ├── bin/pr-gate.js               # Layer A: deterministic checker (ground truth)
 ├── lib/                         # pure logic (unit-tested) + thin git/gh I/O seams

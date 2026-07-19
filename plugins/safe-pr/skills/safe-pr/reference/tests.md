@@ -25,6 +25,22 @@ first:
 Output the record used at Gate 1:
 `{expected: yes | no, kind: e2e/playwright | unit | snapshot | none, evidence: …, run-command: …}`.
 
+## Test-runtime prerequisites
+
+A test's `kind` can carry a **runtime prerequisite**: e2e / playwright / integration tests run
+against a **live app/target**, and a test dispatched with that service down doesn't fail meaningfully
+— it can't run at all. So before dispatching such a run, **establish the prerequisite** (start the
+app using the repo's documented run command) **or confirm the runner starts it itself**, deferring
+to the repo's run docs — never assume a stack. A `playwright.config.*` with a **`webServer` block**
+means the runner **self-boots** the app; its **absence** means the app must be **started separately**
+before the run. If you can neither bring the service up nor determine how the runner reaches it, a
+red run is **not** evidence — say the prerequisite couldn't be established and hand off.
+
+This is a **distinct concern** from the two around it: it is **not** the ready-to-run environment
+step (that establishes dependency/toolchain freshness — deps installed), and it is **not** the
+verification loop's app boot (that's the easiest path for a **human** to eyeball the change). They can
+resolve to different commands/environments; keep them separate.
+
 ## Expected vs. not
 
 - **Behavioral change in a tested area → expected.** Author or adjust the test.

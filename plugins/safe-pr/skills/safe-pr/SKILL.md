@@ -45,7 +45,7 @@ those paths look wrong or the file isn't there, resolve once with
 
 This skill is a **track to run, not an essay to absorb.** Obey these four rules:
 
-1. **One linear track, no skipping.** Run Steps 0 → 12 in order. Anything a step needs that isn't
+1. **One linear track, no skipping.** Run Steps 0 → 13 in order. Anything a step needs that isn't
    an action is a **triggered read** of a `reference/` file *at that step* — read it then, not
    ahead. Never advance on the strength of "it's just a one-liner."
 2. **Uniform step shape.** Each step below is written as **Do / Done when / STOP if / Tell the
@@ -55,15 +55,15 @@ This skill is a **track to run, not an essay to absorb.** Obey these four rules:
    URL. No artifact → not done → you may not advance. Your own judgment that "it's fine" is not an
    artifact.
 4. **Re-emit the progress checklist every turn.** At the top of each of your turns, reprint the
-   full step list (0–12) with `[x]`/`[ ]` and mark the current step, e.g.:
+   full step list (0–13) with `[x]`/`[ ]` and mark the current step, e.g.:
 
    ```
    safe-pr progress
-   [x] 0  pre-flight           [ ] 5  execute            [ ] 10 Gate 2: diff
-   [x] 1  ticket + branch      [ ] 6  tests              [ ] 11 verdict
-   [ ] 2  describe + evidence  [ ] 7  regression list    [ ] 12 mark ready
-   [ ] 3  confirm spec         [ ] 8  verify loop
-   [ ] 4  Gate 1: plan         [ ] 9  draft PR
+   [x] 0  pre-flight           [ ] 5  ready-to-run env   [ ] 10 draft PR
+   [x] 1  ticket + branch      [ ] 6  execute            [ ] 11 Gate 2: diff
+   [ ] 2  describe + evidence  [ ] 7  tests              [ ] 12 verdict
+   [ ] 3  confirm spec         [ ] 8  regression list    [ ] 13 mark ready
+   [ ] 4  Gate 1: plan         [ ] 9  verify loop
    ← you are here: 4  Gate 1: plan
    ```
 
@@ -76,7 +76,8 @@ This skill is a **track to run, not an essay to absorb.** Obey these four rules:
 ### Step 0 — Pre-flight   [HARD GATE]
 **Do:** Your **very first output** is `node "<GATE>" preflight` — no narration before it, and no
 `find`/`ls` to locate the script, no `git status` or `gh auth status` of your own. Then read the
-repo's top-level `CLAUDE.md` for build/run instructions (needed at the verification loop).
+repo's top-level `CLAUDE.md` for build/run instructions (needed at the ready-to-run environment step
+and the verification loop).
 **Done when:** you have quoted the `preflight` JSON showing `clean_tree: true` **and**
 `gh_ok: true`.
 **STOP if:** `clean_tree: false` (unsaved changes — a developer must commit/stash/discard first;
@@ -149,7 +150,32 @@ the rubric's two proxies and Examples E vs. F). Never a bare "out of scope" line
 **Tell the operator:** the verdict in one plain sentence and why. (Yellow → proceed, note the PR
 will be flagged; Green → proceed.)
 
-### Step 5 — Execute
+### Step 5 — Ready-to-run local environment   [GATE]
+**Do:** Now that the plan has passed, make this working copy actually runnable **before** you edit,
+test, or verify anything — a fresh branch checked out off the latest default can have dependencies
+that no longer match the code. Using the repo's top-level `CLAUDE.md` and any setup/dev docs you read
+at pre-flight, determine and run the project's **documented setup/refresh command** so local
+dependencies and toolchain match the checked-out branch. This is **project-agnostic — defer to what
+the repo documents, never assume a stack**: e.g. Node → the repo's `pnpm install` / `npm ci` /
+`yarn install`; Ruby → `bundle install`; Python → `pip install` / `poetry install`; Go →
+`go mod download`; or a repo-provided `make setup`/bootstrap. Run it and confirm it completes cleanly.
+This step is **only dependency/toolchain freshness** — a runtime service that a *test* needs is
+established at the Tests step, and the easiest-path app boot for human viewing is set up at the
+verification loop; keep those separate from this. **There is no Layer A command for this step** — it
+is a Layer B remediation with nothing deterministic to scan.
+**Done when:** the conversation holds **either** a quoted successful run of the repo's documented
+setup command **or** an explicit, evidence-backed "no setup needed because …" (e.g. the repo
+documents none and has no dependency manifest for this working copy).
+**STOP if:** the setup command **fails** (errors, non-zero exit — a stale/broken environment is not a
+safe base to build on; surface it and, if it can't be resolved by re-running the documented command,
+hand off — read [`reference/handoff.md`](reference/handoff.md)); or you **cannot determine any setup
+method and cannot confirm none is needed** (don't guess a package manager — ask the operator or hand
+off). Editing dependency manifests / lockfiles is **deny-listed** — never resolve a setup failure by
+hand-editing them.
+**Tell the operator:** in one plain sentence, that you got the project into a clean, runnable state
+(or that no setup was needed, and why).
+
+### Step 6 — Execute
 **Do:** **First — deny-list pre-check (Layer A).** Before you edit anything, run
 `node "<GATE>" check-paths <path…>` on the file(s) you plan to touch and quote the JSON. If it
 returns `denied: true`, that file is off-limits (migrations, CI, config, secrets, env, dependency
@@ -173,12 +199,21 @@ adjusting many existing tests, the change is bigger than a small, bounded fix �
 Confidence and Risk; reconsider and likely hand off.
 **Tell the operator:** in one plain sentence, what you changed.
 
-### Step 6 — Tests: honor the repo's convention   [GATE]
+### Step 7 — Tests: honor the repo's convention   [GATE]
 **Do:** Read [`reference/tests.md`](reference/tests.md) **now.** Using the test expectation recorded
 at Gate 1:
   1. **If a test is expected**, author the new test or adjust the existing one **inside test files
      only** (`*.spec.*` / `*.test.*` / `__tests__/`), mirroring the repo's existing pattern for
-     changes like this. Then run the **relevant** tests locally to green (lowest-effort subset — the
+     changes like this.
+     Before dispatching, honor the test kind's **runtime prerequisite**: if the expected `kind` needs
+     a live service to run against (e2e / playwright / integration against a running app), ensure that
+     service is up **for the runner** first — using the repo's documented run command — or confirm the
+     runner starts it itself (e.g. a Playwright `webServer` config that boots the app). This is the
+     runner's requirement to execute at all; it is **not** the easiest-path app boot for human viewing
+     (that's the verification loop) and **not** the dependency install (that was the ready-to-run
+     environment step). A test dispatched with its required service down doesn't fail meaningfully — it
+     can't run.
+     Then run the **relevant** tests locally to green (lowest-effort subset — the
      touched spec and its neighbours — the way the verification loop runs just the affected surface;
      the full suite is confirmed by CI at Gate 2).
   2. **If no test is expected** (e.g. pure copy no test asserts, or the repo has no convention for
@@ -189,12 +224,15 @@ added vs. adjusted — it feeds the Confidence axis.
 **STOP if:** making the expected tests green requires editing **test config / CI / `package.json`**
 (deny-list → hand off); requires **new fixtures/mocks/page-objects/abstractions** the repo doesn't
 already provide (new abstraction → Complexity Red → hand off); or you find yourself **adjusting many
-existing tests** (contradiction-detector → the change isn't small → hand off). Read
-[`reference/handoff.md`](reference/handoff.md) on any STOP.
+existing tests** (contradiction-detector → the change isn't small → hand off); or the test kind needs
+a live service and you **cannot** bring it up or determine how the runner reaches it (no documented
+run command, no `webServer` config) — **do not** report a red/failing run as a real result: a run
+that couldn't execute is not evidence, so say the prerequisite couldn't be established and hand off.
+Read [`reference/handoff.md`](reference/handoff.md) on any STOP.
 **Tell the operator:** in one plain sentence, whether you added/adjusted a test and that it passes —
 or that this change isn't the kind the project tests, and why.
 
-### Step 7 — Blast-radius → regression checklist
+### Step 8 — Blast-radius → regression checklist
 **Do:** Reuse the **same consumer analysis** as the Risk axis (don't compute it twice). A "consumer"
 is any site the change can surface at: for UI, an importer/render site of the component; for content,
 a render/usage site of the string or doc (the flows that display it):
@@ -210,10 +248,13 @@ a render/usage site of the string or doc (the flows that display it):
 **Risk = Red → STOP**, not a giant checklist (proportionality rule).
 **Tell the operator:** in one plain sentence, what they'll need to check.
 
-### Step 8 — Verification loop
+### Step 9 — Verification loop
 **Do:** Automated coverage (the tests you made green at the Tests step) and this manual satisfaction
 loop are **two legs** — this loop confirms the change *came out right* to a human eye; it does not
-replace the automated check. Find the **easiest path** for this operator to observe the change by the **method the catalog
+replace the automated check. The app boot here is optimized for the easiest way for the operator to
+observe this specific change; it is a **separate concern** from whatever a test at the Tests step
+needed to execute — don't assume they're the same environment or the same command. Find the
+**easiest path** for this operator to observe the change by the **method the catalog
 prescribes for this change** — run the app and look at the surface (presentational), render/preview
 the output and read it in context (content), or exercise the exact path by hand (bounded change) —
 and set it up with them. Read the repo's `CLAUDE.md` (and any run/dev docs) to learn how the app is
@@ -230,7 +271,7 @@ change** by its method (track which were really verified — this feeds the Conf
 "it looks great" talk you past a safety Red.
 **Tell the operator:** in one plain sentence, what's confirmed and what's left to check.
 
-### Step 9 — Draft PR
+### Step 10 — Draft PR
 **Do:** Push the branch and open a **draft** PR, building the body from `<PLUGIN>/templates/pr-body.md`
 (read it with the resolved `PLUGIN_DIR` path) and filling **every** placeholder:
 ```
@@ -242,7 +283,7 @@ gh pr create --draft --title "<plain title>" --body-file <filled-body.md>
 required. The PR stays draft until Gate 2 passes and you mark it ready at the mark-ready step.
 **Tell the operator:** in one plain sentence, that a draft PR is open for the safety checks.
 
-### Step 10 — Gate 2: assess the DIFF   [GATE]
+### Step 11 — Gate 2: assess the DIFF   [GATE]
 **Do:**
   1. **Layer A:** run `node "<GATE>" scan-diff` on the real diff; quote the numbers.
   2. **Layer A:** run `node "<GATE>" ci-status <pr>` and **wait for a STABLE green** — see the CI
@@ -264,7 +305,7 @@ when you made changes → apply the **Layer A failure rule** (stop, diagnose, do
 stable-green → treat per the CI semantics.
 **Tell the operator:** in one plain sentence, what the safety scan and CI showed.
 
-### Step 11 — Verdict
+### Step 12 — Verdict
 **Do:** Aggregate the Gate 2 scorecard worst-axis and act on it.
 **Done when:** a stated verdict exists: **Red** → mark PR **NOT ready** and produce the developer
 handoff (confirmed spec + diff + failing evidence — [`reference/handoff.md`](reference/handoff.md));
@@ -273,7 +314,7 @@ labels exist, else note it prominently in the body); **Green** → proceed.
 **STOP if:** Red — do not proceed to the mark-ready step; leave any PR as a **draft**.
 **Tell the operator:** in one plain sentence, the verdict and what happens next.
 
-### Step 12 — Mark ready
+### Step 13 — Mark ready
 **Do:**
   1. Flip the draft to ready: `gh pr ready <pr>`.
   2. **RE-RUN** `node "<GATE>" ci-status <pr>` — un-drafting can trigger new workflows, so confirm a
