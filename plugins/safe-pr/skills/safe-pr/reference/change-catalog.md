@@ -55,8 +55,9 @@ This is the path a small, contained tweak (e.g. a PM's small enhancement) uses. 
 **allowance governed by the rubric — not a licence for behavior work.** Allowed **only if it clears
 every guardrail**:
 
-- **one localized site** — a single `useState` default, prop default, or handler; not a change
-  spread across the file's logic;
+- **one localized site** — a single default/initial value, prop default, or handler (e.g. a React
+  `useState` default, a component prop, a controller/template default); not a change spread across
+  the file's logic;
 - **self-contained** — cannot affect the file's other responsibilities or logic other code depends
   on (this is why Example F's tab default passes but Example E's scroll-restore doesn't);
 - **no new abstraction, no control-flow/timing rework, no data fetching, no new component**;
@@ -71,8 +72,9 @@ even one, treat it as rippling logic and **STOP** — hand off.
 Any of the three change natures above may warrant a test — a presentational tweak in a
 snapshot-tested area, a content string an assertion checks, a bounded change in a spec'd flow. Tests
 are therefore **not a catalog section**; they are handled at the **Tests step**, governed by
-[`tests.md`](tests.md). Authoring stays **inside test files** (`*.spec.*` / `*.test.*` /
-`__tests__/`); test **config** (Playwright/Jest config, CI, `package.json`) is deny-listed → hand off.
+[`tests.md`](tests.md). Authoring stays **inside files the repo treats as tests** (matching the gate's `test_globs` — the
+source of truth for what counts); test **config** (`**/*.config.*`), CI (`.github/**`), and
+dependency manifests are deny-listed → hand off.
 
 ## Changes that span sections
 

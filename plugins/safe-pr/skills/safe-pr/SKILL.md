@@ -139,8 +139,9 @@ read at the Tests step.) **There is no Layer A command at this stage** (no diff 
 or probe the gate here; Gate 1 is pure Layer B reasoning.
 **Done when:** the written plan **and** a full 3-axis scorecard (Risk/Complexity/Confidence, each
 Red/Yellow/Green with cited evidence) **and** a one-sentence worst-axis verdict **and** the test
-expectation — `{expected: yes | no, kind: e2e/playwright | unit | snapshot | none, evidence: …,
-run-command: …}` — are in the conversation.
+expectation — `{expected: yes | no, kind: e2e | unit | snapshot | none, evidence: …,
+run-command: …}` (`e2e` names the category — whatever end-to-end runner the repo uses, detected not
+assumed) — are in the conversation.
 **STOP if:** aggregate is **Red** — don't write code; read [`reference/handoff.md`](reference/handoff.md)
 and produce a developer handoff. A non-dev can never override a Red. Even an obvious rejection goes
 **through the scorecard**, and score the *change*, not the file or the category: a change with
@@ -202,9 +203,9 @@ Confidence and Risk; reconsider and likely hand off.
 ### Step 7 — Tests: honor the repo's convention   [GATE]
 **Do:** Read [`reference/tests.md`](reference/tests.md) **now.** Using the test expectation recorded
 at Gate 1:
-  1. **If a test is expected**, author the new test or adjust the existing one **inside test files
-     only** (`*.spec.*` / `*.test.*` / `__tests__/`), mirroring the repo's existing pattern for
-     changes like this.
+  1. **If a test is expected**, author the new test or adjust the existing one **inside files the
+     repo treats as tests** (the gate's `test_globs` is the source of truth for what counts),
+     mirroring the repo's existing pattern for changes like this.
      Before dispatching, honor the test kind's **runtime prerequisite**: if the expected `kind` needs
      a live service to run against (e2e / playwright / integration against a running app), ensure that
      service is up **for the runner** first — using the repo's documented run command — or confirm the
@@ -238,7 +239,7 @@ is any site the change can surface at: for UI, an importer/render site of the co
 a render/usage site of the string or doc (the flows that display it):
   1. Find consumers of the touched symbols/components/strings (`grep` / usage search).
   2. For each, infer the page/flow it appears in **by reading code** (route files, render sites,
-     naming, render-site tests) — there's no Storybook or route map.
+     naming, render-site tests) — there's no component explorer or route map to lean on.
   3. **Cluster** consumers by similarity (same variant/props/usage → one equivalence class).
   4. Emit a **markdown checklist**: the **direct** change (always), **one representative per
      cluster** ("covers these N others, same usage"), and a **"could not determine"** section for

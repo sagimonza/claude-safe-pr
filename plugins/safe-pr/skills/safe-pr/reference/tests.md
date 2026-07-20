@@ -14,16 +14,20 @@ discovers how to run the app).
 Decide the repo's **test expectation** for *this* change and cite the evidence. Signals, strongest
 first:
 
-- **Colocated sibling test** — a file with the same basename plus `.spec`/`.test`, or a `__tests__/`
-  dir alongside the touched file. Direct evidence the area is tested.
+- **Colocated sibling test** — a file following the repo's test-file convention alongside the
+  touched file: a same-basename `*.spec.*` / `*.test.*` / `*_spec.rb` / `*_test.go` / `test_*.py`, or
+  a `__tests__/` / `spec/` / `test/` sibling. Direct evidence the area is tested.
 - **An analogous component/page that has a spec** — a strong convention signal even without a
-  sibling. E.g. every page in a `cbms-ui`-style app ships a Playwright spec run against **mocked
-  endpoints**; a new/changed page is expected to too.
+  sibling. E.g. every page in some apps ships an end-to-end spec run against **mocked endpoints**; a
+  new/changed page is expected to too.
 - **Repo docs / scripts** — `CLAUDE.md`, a `testing`/`CONTRIBUTING` doc, or `package.json` scripts
   that name the test command and whether tests are expected per change.
 
 Output the record used at Gate 1:
-`{expected: yes | no, kind: e2e/playwright | unit | snapshot | none, evidence: …, run-command: …}`.
+`{expected: yes | no, kind: e2e | unit | snapshot | none, evidence: …, run-command: …}`. Here `e2e`
+names the **category**, covering whatever end-to-end/system runner the repo actually uses (Playwright,
+Cypress, RSpec/Capybara system specs, pytest+Selenium, Go `httptest`, …) — detected from the repo,
+never assumed.
 
 ## Test-runtime prerequisites
 
@@ -69,10 +73,13 @@ resolve to different commands/environments; keep them separate.
 
 ## The deny-list boundary — test *files* yes, test *config* no
 
-Author/adjust **inside test files only** (`*.spec.*` / `*.test.*` / `__tests__/`). If making the
-tests run requires editing **test config** (`**/*.config.*` — Playwright/Jest config), **CI**
-(`.github/**`), or **`package.json`** (scripts), those are on the deny-list → **hand off**. A test
-entry point creates no exception.
+Author/adjust **inside files the repo treats as tests** — i.e. anything the gate's `test_globs`
+matches (`*.spec.*`, `*.test.*`, `*_spec.*`, `*_test.*`, `*Spec.*`, `*Test.*`, `__tests__/`,
+`__mocks__/`, `e2e/`, `cypress/`, …). The gate's `test_globs` is the source of truth for what counts
+as a test file. If making the tests run requires editing **test config** (`**/*.config.*` — e.g.
+Playwright/Jest/pytest config), **CI** (`.github/**`), or a **dependency manifest** (`package.json`,
+`Gemfile`, `go.mod`, …), those are on the deny-list → **hand off**. A test entry point creates no
+exception.
 
 ## Trust & running — why green is the substitute
 

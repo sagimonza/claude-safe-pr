@@ -71,7 +71,8 @@ depends on)?
 - **Green:** 1–2 files, presentational only, no logic.
 - **Yellow:** a few files, or minor localized logic, OR a **contained** state/prop change — one
   self-contained site, reversible, no new abstraction or control-flow rework (e.g. persisting one
-  value in `sessionStorage` and reading it back as a default).
+  value in `sessionStorage` and reading it back as a default — one stack's form of a contained
+  default; the equivalent in any framework counts the same).
 - **Red:** many files, a **rippling** logic/state change (control flow, timing, or logic other code
   depends on), data fetching, a new component, or a new pattern introduced.
 
@@ -132,6 +133,11 @@ eligible for **Green**. (A test that *was* added/adjusted and is green in CI sup
 
 ## Worked examples
 
+> These examples use a web/JS frontend for concreteness, **except where a stack is named** (G is
+> Rails, B is Django); the **reasoning is stack-neutral**. Read `Button.jsx` as "any leaf component,"
+> `className` as "any presentational attribute," a `useState` default as "any contained default." Each
+> verdict turns on scope, blast radius, and verifiability — never on the stack it's written in.
+
 **Example A — clean Green.** Change the label of one button from "Subscribe" to "Join now".
 - Risk: **Green** — `grep "PricingButton"` → 1 importer (`PricingPage.tsx`); pure copy change; not
   on auth/payments path; no `CLAUDE.md` cautions in `src/pricing/`.
@@ -140,11 +146,12 @@ eligible for **Green**. (A test that *was* added/adjusted and is green in CI sup
   tests adjusted; operator verified the pricing page in the running app.
 - Overall: **Green** → proceed to ready.
 
-**Example B — Yellow (proceed, flagged).** Recolor a shared `<Badge>` used in a few places.
-- Risk: **Yellow** — `grep "Badge"` → 4 importers across 3 pages; presentational, but moderately
-  shared.
-- Complexity: **Green** — Layer A: `files_changed: 1`, `loc_total: 3`; CSS variable swap only.
-- Confidence: **Yellow** — no test directly covers `Badge`; operator verified 2 of the 4 render
+**Example B — Yellow (proceed, flagged) — Django.** Recolor a shared badge: swap the CSS class on a
+`_badge.html` template partial included in a few places.
+- Risk: **Yellow** — `grep` for the partial → included by 4 templates across 3 pages; presentational,
+  but moderately shared.
+- Complexity: **Green** — Layer A: `files_changed: 1`, `loc_total: 3`; a class swap only.
+- Confidence: **Yellow** — no test directly covers the badge; operator verified 2 of the 4 render
   sites in the running app, reasoned the other 2 equivalent (same variant).
 - Overall: **Yellow** → proceed; flag the PR so the reviewer checks the unverified render sites.
 
@@ -180,7 +187,8 @@ rippling control flow, not the mere presence of state:
 **Example F — Yellow (proceed, flagged): a *contained* state change.** "When I come back to the
 rules page, keep me on the tab I last had open instead of resetting to the first one." The tab value
 lives in a shared context, but the change is: read/write one `sessionStorage` key in the tab's
-`useState` initializer and its change handler.
+`useState` initializer and its change handler. (This is React's form of a contained default; the
+equivalent in any framework qualifies the same way.)
 - Risk: **Yellow** — the context is shared by both routes, but this edit touches *only the initial
   tab value* — it can't reach the pagination/filter/refresh logic other consumers depend on. Blast
   radius is the tab selection, not the hub. (Score the change, not the file's centrality.)
@@ -194,14 +202,16 @@ lives in a shared context, but the change is: read/write one `sessionStorage` ke
 - Overall: **Yellow** → proceed; flag the PR so the reviewer checks the first-load/empty-storage
   edge case.
 
-**Example G — `content` Green.** Reword a validation error message string from "Enter a valid email"
-to "That email doesn't look right." 1 file, string value only.
-- Risk: **Green** — `grep` shows the string used by one signup form; not legal/compliance/security
+**Example G — `content` Green — Rails.** Reword a validation error message string from "Enter a valid
+email" to "That email doesn't look right." — the string lives under a static key in a Rails
+`config/locales/en.yml` (no interpolation), rendered by the signup form's ERB. 1 file, string value
+only.
+- Risk: **Green** — `grep` shows the locale key used by one signup form; not legal/compliance/security
   wording (no info leaked, no instruction users act on); not on an auth/payments path.
 - Complexity: **Green** — Layer A: `files_changed: 1`, small LOC; pure text, no touched logic.
 - Confidence: **Green** — **high verifiability**: the operator submits the form with a bad email,
-  triggers the error, and reads the new copy **in context** in the running app, seeing nothing else
-  changed. No i18n placeholders, no reuse across contexts. Fully hand-verifiable.
+  triggers the error, and reads the new copy **in context** in the rendered page, seeing nothing else
+  changed. No interpolation placeholders, no reuse across contexts. Fully hand-verifiable.
 - Overall: **Green** → proceed to ready.
 
 **Example H — `content` Red via low verifiability.** Edit a canned message that is only ever sent by
@@ -220,12 +230,13 @@ context).
   hand off (a developer with the i18n framework should own the plural rule).
 
 **Example J — honoring the repo's test convention (Green/Yellow), and its "too large" boundary
-(Red).** A `cbms-ui`-style app where **every page ships a Playwright spec run against mocked
-endpoints**. The change: a small UI tweak to one page (e.g. add an empty-state message to a list).
-- **Gate 1 test expectation:** `{expected: yes, kind: e2e/playwright, evidence: "sibling
-  Orders.spec.ts; every page under src/pages has a colocated spec", run-command: "npx playwright test
-  orders"}`.
-- **Tests step:** author `Orders.spec.ts` coverage for the empty state, mirroring the existing
+(Red).** An app whose convention is that **every page ships an end-to-end spec run against mocked
+endpoints** (via whatever e2e framework the repo uses — Playwright, Cypress, RSpec/Capybara, …). The
+change: a small UI tweak to one page (e.g. add an empty-state message to a list).
+- **Gate 1 test expectation:** `{expected: yes, kind: e2e, evidence: "sibling Orders spec; every page
+  under the pages dir has a colocated spec", run-command: "<the repo's e2e runner, e.g. npx
+  playwright test orders>"}`.
+- **Tests step:** author the empty-state coverage in the page's sibling spec, mirroring the existing
   mocked-endpoint pattern; run the touched spec locally → green.
 - Complexity: **Green/Yellow** — Layer A: `product_loc: 6`, `test_loc: 70` (each under its own
   ceiling — the 70-line spec doesn't touch the product budget); no new abstraction, reused the
