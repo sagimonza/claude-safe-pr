@@ -49,13 +49,20 @@ plugins/safe-pr/
   to exercise the change by its verification method — run the app, or build/preview a doc) and tests
   that run in CI per PR.
 
-## Install locally (for iteration)
+## Install
 
-This plugin lives in the `claude-non-dev-pr` marketplace at the repo root. Add the marketplace
-(the repo root, **not** this plugin directory), then install the plugin from it:
+This plugin lives in the `claude-non-dev-pr` marketplace at the repo root. Add the marketplace,
+then install the plugin from it. `/plugin marketplace add` accepts a GitHub `owner/repo`, a git URL,
+or a local path — use whichever form matches where the marketplace lives:
 
 ```
-/plugin marketplace add /Users/sagi.monza/repos/claude-non-dev-pr
+# From GitHub (replace with the marketplace's own owner/repo):
+/plugin marketplace add <owner>/<repo>
+
+# …or from a local checkout (point at the repo root, NOT this plugin directory):
+/plugin marketplace add <path-to-marketplace-checkout>
+
+# then, either way:
 /plugin install safe-pr@claude-non-dev-pr
 ```
 

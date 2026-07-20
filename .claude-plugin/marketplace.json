@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-non-dev-pr",
   "description": "Plugins that guide non-developers through shipping small, low-risk changes safely.",
-  "owner": { "name": "sagimonza" },
+  "owner": { "name": "claude-non-dev-pr" },
   "plugins": [
     {
       "name": "safe-pr",
