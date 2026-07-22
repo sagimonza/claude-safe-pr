@@ -1,0 +1,795 @@
+<title>safe-pr — how it works</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #eef0f4;
+    --inset: #f8f9fb;
+    --ink: #151a21;
+    --ink-soft: #47515f;
+    --ink-faint: #798493;
+    --line: #dde1e8;
+    --line-strong: #c9cfd9;
+    --accent: #4338ca;
+    --accent-ink: #4338ca;
+    --accent-soft: #ecebfb;
+    --accent-line: #cbc7f2;
+
+    --green: #197a45;
+    --green-soft: #e2f2e8;
+    --green-line: #b7ddc6;
+    --amber: #8a5d0f;
+    --amber-soft: #faf0d9;
+    --amber-line: #ecd39a;
+    --red: #b5342a;
+    --red-soft: #fbe6e3;
+    --red-line: #eec1bb;
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --maxw: 1060px;
+    --prose: 66ch;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(20, 26, 33, .06), 0 6px 20px -12px rgba(20, 26, 33, .18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e141b;
+      --surface: #141c26;
+      --surface-2: #1b2532;
+      --inset: #101822;
+      --ink: #e8ecf2;
+      --ink-soft: #a8b2c0;
+      --ink-faint: #6c7787;
+      --line: #26303d;
+      --line-strong: #33404f;
+      --accent: #8b8bf5;
+      --accent-ink: #a6a6f8;
+      --accent-soft: #1e2140;
+      --accent-line: #363a63;
+
+      --green: #5dd48f;
+      --green-soft: #12261b;
+      --green-line: #234b33;
+      --amber: #e7b85c;
+      --amber-soft: #241d10;
+      --amber-line: #4d3d1c;
+      --red: #f0776b;
+      --red-soft: #2a1512;
+      --red-line: #532621;
+
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -16px rgba(0,0,0,.7);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --bg: #f4f5f7; --surface: #fff; --surface-2: #eef0f4; --inset: #f8f9fb;
+    --ink: #151a21; --ink-soft: #47515f; --ink-faint: #798493;
+    --line: #dde1e8; --line-strong: #c9cfd9;
+    --accent: #4338ca; --accent-ink: #4338ca; --accent-soft: #ecebfb; --accent-line: #cbc7f2;
+    --green: #197a45; --green-soft: #e2f2e8; --green-line: #b7ddc6;
+    --amber: #8a5d0f; --amber-soft: #faf0d9; --amber-line: #ecd39a;
+    --red: #b5342a; --red-soft: #fbe6e3; --red-line: #eec1bb;
+    --shadow: 0 1px 2px rgba(20,26,33,.06), 0 6px 20px -12px rgba(20,26,33,.18);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e141b; --surface: #141c26; --surface-2: #1b2532; --inset: #101822;
+    --ink: #e8ecf2; --ink-soft: #a8b2c0; --ink-faint: #6c7787;
+    --line: #26303d; --line-strong: #33404f;
+    --accent: #8b8bf5; --accent-ink: #a6a6f8; --accent-soft: #1e2140; --accent-line: #363a63;
+    --green: #5dd48f; --green-soft: #12261b; --green-line: #234b33;
+    --amber: #e7b85c; --amber-soft: #241d10; --amber-line: #4d3d1c;
+    --red: #f0776b; --red-soft: #2a1512; --red-line: #532621;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -16px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+
+  a { color: var(--accent-ink); text-decoration-color: var(--accent-line); text-underline-offset: 2px; }
+
+  /* ---------- eyebrows & headings ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px; height: 1px; background: var(--line-strong);
+  }
+  h2 { font-size: clamp(1.4rem, 1rem + 1.4vw, 1.9rem); line-height: 1.2; letter-spacing: -.01em; margin: 0 0 12px; text-wrap: balance; }
+  h3 { font-size: 1.05rem; margin: 0 0 6px; letter-spacing: -.005em; }
+  p { margin: 0 0 14px; }
+  .prose { max-width: var(--prose); color: var(--ink-soft); }
+  .prose strong { color: var(--ink); font-weight: 600; }
+
+  section { padding: 46px 0; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: none; }
+
+  code, .mono { font-family: var(--mono); }
+  p code, li code {
+    font-size: .86em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: .06em .4em;
+    border-radius: 5px;
+    color: var(--ink);
+  }
+
+  /* ---------- header ---------- */
+  header {
+    padding: 60px 0 40px;
+    background:
+      radial-gradient(120% 90% at 88% -10%, var(--accent-soft) 0%, transparent 55%);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 18px;
+    box-shadow: var(--shadow);
+  }
+  :root[data-theme="dark"] .brand-mark { color: #0e141b; }
+  @media (prefers-color-scheme: dark) { .brand-mark { color: #0e141b; } }
+  .brand-name { font-family: var(--mono); font-weight: 600; letter-spacing: .02em; }
+  .brand-name span { color: var(--ink-faint); }
+  header h1 {
+    font-size: clamp(2rem, 1.3rem + 3.2vw, 3.3rem);
+    line-height: 1.05; letter-spacing: -.025em;
+    margin: 0 0 18px; max-width: 20ch; text-wrap: balance;
+  }
+  header .lede { max-width: 54ch; font-size: 1.12rem; color: var(--ink-soft); margin: 0 0 26px; }
+  header .lede b { color: var(--ink); font-weight: 600; }
+
+  .meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-family: var(--mono); font-size: 12px;
+    padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line-strong); background: var(--surface);
+    color: var(--ink-soft); white-space: nowrap;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- generic cards ---------- */
+  .grid { display: grid; gap: 16px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+  .card .kicker {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 10px;
+  }
+
+  /* two invariants */
+  .invariants { grid-template-columns: 1fr 1fr; margin-top: 8px; }
+  .invariant { border-left: 3px solid var(--accent); }
+  .invariant .num { font-family: var(--mono); color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+
+  /* ---------- two layers ---------- */
+  .layers { grid-template-columns: 1fr 1fr; align-items: stretch; }
+  .layer { position: relative; overflow: hidden; }
+  .layer-tag {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 6px; margin-bottom: 14px;
+  }
+  .layer-a .layer-tag { background: var(--accent); color: #fff; }
+  :root[data-theme="dark"] .layer-a .layer-tag { color: #0e141b; }
+  @media (prefers-color-scheme: dark) { .layer-a .layer-tag { color: #0e141b; } }
+  .layer-b .layer-tag { background: transparent; color: var(--accent-ink); border: 1px dashed var(--accent-line); }
+  .layer h3 { margin-bottom: 8px; }
+  .layer ul { margin: 12px 0 0; padding-left: 18px; color: var(--ink-soft); font-size: .93rem; }
+  .layer li { margin-bottom: 6px; }
+  .layer .verdict {
+    margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line);
+    font-size: .88rem; color: var(--ink-soft);
+  }
+  .layer .verdict b { color: var(--ink); }
+
+  /* ---------- flow timeline ---------- */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 20px; margin: 4px 0 30px; font-size: 12.5px; color: var(--ink-soft); }
+  .legend .item { display: flex; align-items: center; gap: 8px; }
+  .badge {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+  }
+  .badge.hard { background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); }
+  .badge.gate { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber-line); }
+  .badge.block { background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-line); }
+  .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .dot.a { background: var(--accent); }
+  .dot.b { background: transparent; border: 1.5px dashed var(--accent-line); }
+  .dot.stop { background: var(--red); border-radius: 999px; }
+
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    gap: 18px;
+    position: relative;
+    padding-bottom: 8px;
+  }
+  .rail { display: flex; flex-direction: column; align-items: center; }
+  .rail .n {
+    width: 34px; height: 34px; flex: none;
+    border-radius: 9px;
+    background: var(--surface); border: 1px solid var(--line-strong);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--ink);
+    z-index: 1;
+  }
+  .step.is-gate .rail .n { border-color: var(--amber-line); color: var(--amber); background: var(--amber-soft); }
+  .step.is-hard .rail .n { border-color: var(--red-line); color: var(--red); background: var(--red-soft); }
+  .rail .line { width: 2px; flex: 1; background: var(--line); margin: 4px 0; min-height: 12px; }
+  .step:last-child .rail .line { display: none; }
+
+  .step-body { padding-bottom: 22px; min-width: 0; }
+  .step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 5px; }
+  .step-head h3 { margin: 0; font-size: 1.02rem; }
+  .step-body p { margin: 0 0 10px; color: var(--ink-soft); font-size: .93rem; max-width: 62ch; }
+  .step-cmd {
+    display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px;
+    background: var(--inset); border: 1px solid var(--line);
+    border-radius: 7px; padding: 6px 10px; color: var(--ink);
+    max-width: 100%; overflow-x: auto;
+  }
+  .step-cmd .lz { color: var(--accent-ink); font-weight: 600; }
+  .step-cmd.b { border-style: dashed; color: var(--ink-soft); }
+  .step-stop {
+    display: flex; align-items: baseline; gap: 8px;
+    font-size: .85rem; color: var(--ink-soft); margin-top: 10px;
+  }
+  .step-stop .lbl { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--red); flex: none; }
+  .meta-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; }
+
+  /* ---------- scorecard ---------- */
+  .score-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table.score { border-collapse: collapse; width: 100%; min-width: 620px; font-size: .9rem; }
+  table.score th, table.score td { text-align: left; padding: 14px 16px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  table.score thead th { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  table.score tbody tr:last-child td { border-bottom: none; }
+  .axis { font-weight: 600; color: var(--ink); }
+  .axis small { display: block; font-weight: 400; color: var(--ink-faint); font-family: var(--mono); font-size: 11px; margin-top: 3px; letter-spacing: .02em; }
+  .lvl { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: .82rem; margin-bottom: 5px; }
+  .lvl::before { content: ""; width: 9px; height: 9px; border-radius: 999px; }
+  .lvl.g { color: var(--green); } .lvl.g::before { background: var(--green); }
+  .lvl.y { color: var(--amber); } .lvl.y::before { background: var(--amber); }
+  .lvl.r { color: var(--red); } .lvl.r::before { background: var(--red); }
+  td.cell { color: var(--ink-soft); }
+  td.cell.g { background: var(--green-soft); }
+  td.cell.y { background: var(--amber-soft); }
+  td.cell.r { background: var(--red-soft); }
+
+  .rule-note {
+    margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  .rule-note .card { padding: 16px 18px; }
+  .rule-note h3 { font-size: .92rem; }
+  .rule-note p { font-size: .86rem; color: var(--ink-soft); margin: 0; }
+
+  /* ---------- examples ---------- */
+  .examples { grid-template-columns: repeat(3, 1fr); }
+  .ex { border-top: 3px solid var(--line-strong); }
+  .ex.g { border-top-color: var(--green); }
+  .ex.y { border-top-color: var(--amber); }
+  .ex.r { border-top-color: var(--red); }
+  .ex .verd { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+  .ex.g .verd { color: var(--green); } .ex.y .verd { color: var(--amber); } .ex.r .verd { color: var(--red); }
+  .ex p { font-size: .88rem; color: var(--ink-soft); margin: 0 0 8px; }
+  .ex .why { font-size: .82rem; color: var(--ink-faint); margin: 0; }
+  .ex .why b { color: var(--ink-soft); font-weight: 600; }
+
+  /* ---------- catalog ---------- */
+  .catalog { grid-template-columns: repeat(3, 1fr); }
+  .cat h3 { display: flex; align-items: center; gap: 8px; }
+  .cat .archetypes { font-size: .88rem; color: var(--ink-soft); margin: 6px 0 14px; }
+  .cat .method { font-size: .82rem; color: var(--ink); background: var(--inset); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .cat .method b { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; display: block; margin-bottom: 4px; }
+
+  /* ---------- deny-list ---------- */
+  .deny { display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; align-items: start; }
+  .glob-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+  .glob {
+    font-family: var(--mono); font-size: 12px;
+    padding: 5px 9px; border-radius: 6px;
+    background: var(--red-soft); border: 1px solid var(--red-line); color: var(--red);
+  }
+  .handoff-card { border-left: 3px solid var(--red); }
+  .handoff-card ol { margin: 10px 0 0; padding-left: 20px; color: var(--ink-soft); font-size: .9rem; }
+  .handoff-card li { margin-bottom: 6px; }
+
+  /* ---------- developer ---------- */
+  .dev-grid { grid-template-columns: 1fr 1fr; align-items: start; }
+  pre.tree {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+    background: var(--inset); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; margin: 0; overflow-x: auto; color: var(--ink-soft);
+  }
+  pre.tree b { color: var(--ink); font-weight: 600; }
+  pre.tree .c { color: var(--ink-faint); }
+  .principle { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .principle:last-child { border-bottom: none; }
+  .principle .pn { font-family: var(--mono); color: var(--accent-ink); font-weight: 600; font-size: 13px; flex: none; width: 22px; }
+  .principle p { margin: 0; font-size: .9rem; color: var(--ink-soft); }
+  .principle p b { color: var(--ink); font-weight: 600; }
+
+  .semver { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px; }
+  .sv { padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--inset); }
+  .sv .t { font-family: var(--mono); font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .sv.patch .t { color: var(--green); } .sv.minor .t { color: var(--amber); } .sv.major .t { color: var(--red); }
+  .sv p { font-size: .82rem; color: var(--ink-soft); margin: 0; }
+  .sync-note {
+    margin-top: 14px; font-size: .86rem; color: var(--ink-soft);
+    background: var(--accent-soft); border: 1px solid var(--accent-line);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .sync-note b { color: var(--ink); }
+
+  /* ---------- footer ---------- */
+  footer { border-top: 1px solid var(--line); padding: 46px 0 70px; }
+  .cmds { display: grid; gap: 8px; max-width: 640px; margin-top: 8px; }
+  .cmd {
+    font-family: var(--mono); font-size: 13px;
+    background: var(--inset); border: 1px solid var(--line); border-radius: 8px;
+    padding: 11px 14px; color: var(--ink); overflow-x: auto; white-space: nowrap;
+  }
+  .cmd .p { color: var(--ink-faint); user-select: none; }
+  .cmd .c { color: var(--ink-faint); }
+  footer .fine { margin-top: 26px; font-size: .82rem; color: var(--ink-faint); max-width: 60ch; }
+
+  .split-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 22px; }
+  .split-head .prose { margin: 0; }
+
+  @media (max-width: 860px) {
+    .invariants, .layers, .examples, .catalog, .deny, .dev-grid, .rule-note, .semver { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .step { grid-template-columns: 38px 1fr; gap: 12px; }
+    .rail .n { width: 30px; height: 30px; font-size: 12.5px; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .card, .step-body { transition: border-color .18s ease, transform .18s ease; }
+    .flow .step:hover .rail .n { border-color: var(--accent); }
+  }
+  a:focus-visible, .cmd:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <div class="brand-mark">✓</div>
+      <div class="brand-name">safe-pr <span>· claude-non-dev-pr</span></div>
+    </div>
+    <h1>Ship a small change safely — without writing code.</h1>
+    <p class="lede">
+      A Claude Code plugin that walks a <b>non-developer</b> — a UX designer, PM, or CS teammate —
+      from an idea to a <b>draft pull request</b> a developer reviews. It runs a deterministic
+      safety gate plus a risk assessment, and ships only what it can prove is small, bounded, and
+      checkable by hand.
+    </p>
+    <div class="meta-row">
+      <span class="chip">v<b>0.12.1</b></span>
+      <span class="chip">Node <b>≥ 20</b></span>
+      <span class="chip">deps: <b>zero</b> runtime</span>
+      <span class="chip">tests: <b>node:test</b></span>
+      <span class="chip">needs: <b>git · gh</b></span>
+      <span class="chip">14-step guided flow</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- WHAT / WHO -->
+  <section id="what">
+    <p class="eyebrow">What it is</p>
+    <h2>A filter to reduce review burden — not a merge wall.</h2>
+    <p class="prose">
+      safe-pr guides <strong>the operator</strong> (the non-developer) in plain language and does the
+      technical work for them — asking only for the decisions a human must own: <strong>what</strong>
+      the change should be, and whether it <strong>came out right</strong>. The real backstops stay
+      exactly where they were: the repo's own CI and a developer reviewing every PR. Everything runs
+      <strong>in-session</strong> — no custom CI check, no repo scaffolding to install.
+    </p>
+
+    <div class="grid invariants">
+      <div class="card invariant">
+        <div class="kicker">Invariant 1</div>
+        <h3>Bounded blast radius</h3>
+        <p class="prose" style="margin:0;font-size:.92rem;">
+          The change is confined to a deny-list-clean, small, mappable surface — enforced by the
+          gate's file/LOC ceilings and a consumer analysis of everything it can reach.
+        </p>
+      </div>
+      <div class="card invariant">
+        <div class="kicker">Invariant 2</div>
+        <h3>Hand-verifiable</h3>
+        <p class="prose" style="margin:0;font-size:.92rem;">
+          The operator can observe both that the change <em>worked</em> and that <em>nothing else
+          moved</em> — and the failure modes are visible, not silent. A change qualifies only when it
+          clears <strong>both</strong>. The rest correctly hand off — that's a success, not a gap.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TWO LAYERS -->
+  <section id="layers">
+    <p class="eyebrow">How it works · two layers of truth</p>
+    <h2>A deterministic gate, checked by reasoning.</h2>
+    <p class="prose">
+      Every safety decision is split between a script that always returns the same answer for the
+      same input, and the model's judgment fed by that script's facts. The rule that keeps them
+      honest: <strong>evidence before score</strong> — never state a rating until the facts that
+      justify it are written down, each with the command that produced it.
+    </p>
+
+    <div class="grid layers">
+      <div class="card layer layer-a">
+        <span class="layer-tag">■ Layer A — deterministic</span>
+        <h3><code>bin/pr-gate.js</code></h3>
+        <p class="prose" style="font-size:.92rem;">
+          Plain JavaScript on Node built-ins. Emits machine-readable JSON that is
+          <strong>ground truth</strong> — the model quotes it and never recomputes the numbers by eye.
+        </p>
+        <ul>
+          <li><code>preflight</code> — clean tree, branch &amp; base, <code>gh</code> readiness</li>
+          <li><code>new-branch</code> — validate the Jira id, build the branch name</li>
+          <li><code>check-paths</code> — deny-list pre-check before editing</li>
+          <li><code>scan-diff</code> — deny hits, file/LOC ceilings</li>
+          <li><code>ci-status</code> — stability-aware CI read</li>
+        </ul>
+        <p class="verdict"><b>hard_fail: true</b> (deny hit or over ceiling) is an automatic STOP.</p>
+      </div>
+
+      <div class="card layer layer-b">
+        <span class="layer-tag">▢ Layer B — reasoning</span>
+        <h3>The model's assessment</h3>
+        <p class="prose" style="font-size:.92rem;">
+          Scores the change on three axes using Layer A's facts, plus judgment the script can't make:
+          what a change can actually reach, and whether a human could catch it going wrong.
+        </p>
+        <ul>
+          <li>Risk / Complexity / Confidence, each Red · Yellow · Green</li>
+          <li>Every rating cites the <code>grep</code>, file read, or JSON that backs it</li>
+          <li>Maps the blast radius to a regression checklist</li>
+          <li>Decides whether the repo convention expects a test</li>
+        </ul>
+        <p class="verdict">Reasoning never overrides Layer A — a <b>Red</b> can't be talked past.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOW -->
+  <section id="flow">
+    <p class="eyebrow">The guided flow · one linear track, no skipping</p>
+    <div class="split-head">
+      <div>
+        <h2>Steps 0 → 13</h2>
+        <p class="prose">
+          A step is done only when its named artifact exists — a quoted JSON result, a written
+          scorecard, the operator's verbatim confirmation, a draft PR URL. A missing artifact is a
+          visible unchecked box, and that hole is the gate.
+        </p>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="item"><span class="badge hard">Hard gate</span> stops the run</span>
+      <span class="item"><span class="badge gate">Gate</span> must pass to advance</span>
+      <span class="item"><span class="dot a"></span> Layer A command</span>
+      <span class="item"><span class="dot b"></span> Layer B reasoning</span>
+      <span class="item"><span class="dot stop"></span> STOP → developer handoff</span>
+    </div>
+
+    <div class="flow" id="flowList"></div>
+  </section>
+
+  <!-- SCORECARD -->
+  <section id="scorecard">
+    <p class="eyebrow">The verdict · one form only</p>
+    <h2>Three axes, three lights.</h2>
+    <p class="prose">
+      There is no separate "in scope / out of scope" call — every decision goes through this
+      scorecard. Score the <strong>specific change</strong>, not the category it falls in or how
+      central the file is.
+    </p>
+
+    <div class="score-wrap">
+      <table class="score">
+        <thead>
+          <tr>
+            <th style="width:150px">Axis</th>
+            <th>Green</th>
+            <th>Yellow</th>
+            <th>Red</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="axis">Risk<small>blast radius</small></div></td>
+            <td class="cell g"><span class="lvl g">Green</span>Leaf / presentational; ≤ 1–2 consumers; not on a critical path.</td>
+            <td class="cell y"><span class="lvl y">Yellow</span>Shared by several consumers, or a contained state / prop change.</td>
+            <td class="cell r"><span class="lvl r">Red</span>Shared logic consumers depend on, a money / auth / data path, or an unbounded surface.</td>
+          </tr>
+          <tr>
+            <td><div class="axis">Complexity<small>size &amp; shape</small></div></td>
+            <td class="cell g"><span class="lvl g">Green</span>1–2 files, presentational only, no logic.</td>
+            <td class="cell y"><span class="lvl y">Yellow</span>A few files, minor localized logic, or a <em>contained</em> default change.</td>
+            <td class="cell r"><span class="lvl r">Red</span>Rippling logic / timing, data fetching, a new component or pattern.</td>
+          </tr>
+          <tr>
+            <td><div class="axis">Confidence<small>sure nothing breaks</small></div></td>
+            <td class="cell g"><span class="lvl g">Green</span>Good coverage &amp; green CI — or fully hand-verifiable and confirmed end-to-end.</td>
+            <td class="cell y"><span class="lvl y">Yellow</span>Thin coverage or 1–2 tests adjusted, but failure modes stay observable.</td>
+            <td class="cell r"><span class="lvl r">Red</span>Silent failure modes, many tests adjusted, CI failing, or couldn't verify.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rule-note">
+      <div class="card">
+        <h3>Aggregation: worst of the three</h3>
+        <p>The final verdict is the worst single axis. Two or more yellows stay <strong>Yellow</strong> — they do <em>not</em> compound to Red. Yellow proceeds (flagged for closer review); Red stops and hands off.</p>
+      </div>
+      <div class="card">
+        <h3>Two proxies to distrust</h3>
+        <p><strong>File centrality</strong> describes the file, not the change — a one-line default in a central file has a small blast radius. And the word <strong>"state"</strong> decides nothing: a stored default is contained; a data-fetch controller ripples.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXAMPLES -->
+  <section id="examples">
+    <p class="eyebrow">Scoring in practice</p>
+    <h2>Same word, different verdict.</h2>
+    <p class="prose">Three changes that all touch "state" or "spacing" — and land in three different places, because scope and verifiability decide, not the label.</p>
+    <div class="grid examples">
+      <div class="card ex g">
+        <div class="verd">● Green · ship it</div>
+        <p><b>Rename one button</b> "Subscribe" → "Join now" on the pricing page.</p>
+        <p class="why"><b>Why:</b> one importer, pure copy, snapshot test covers it, verified in the running app.</p>
+      </div>
+      <div class="card ex y">
+        <div class="verd">● Yellow · ship, flagged</div>
+        <p><b>Remember the last-open tab</b> via one <code>sessionStorage</code> key in the tab's initial value.</p>
+        <p class="why"><b>Why:</b> the context is shared, but this touches only the initial value — contained, reversible, and fully visible on screen.</p>
+      </div>
+      <div class="card ex r">
+        <div class="verd">● Red · hand off</div>
+        <p><b>Restore scroll position</b> when navigating back from a details page to the list.</p>
+        <p class="why"><b>Why:</b> it hooks into scroll + data-load timing other flows depend on — rippling logic that fails silently on a slow load.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATALOG -->
+  <section id="catalog">
+    <p class="eyebrow">The allowed-change catalog</p>
+    <h2>What may be shipped — and how it's checked.</h2>
+    <p class="prose">
+      Inside the deny-list fence, three change natures qualify. The model names the section at the
+      plan gate; that choice decides the verification method.
+    </p>
+    <div class="grid catalog">
+      <div class="card cat">
+        <h3>Presentational</h3>
+        <p class="archetypes">Copy &amp; text, colors, spacing, sizing, simple style props, icon swaps, toggling a class.</p>
+        <div class="method"><b>Verify by</b> Running the app and looking at the surface — the effect, and that nothing else moved.</div>
+      </div>
+      <div class="card cat">
+        <h3>Content</h3>
+        <p class="archetypes">Docs &amp; markdown, help articles, message strings, i18n string <em>values</em>, in-repo canned replies. <strong>Not</strong> anything flag- or config-driven.</p>
+        <div class="method"><b>Verify by</b> Rendering the output and reading it — trigger the state that shows the string and read it in context.</div>
+      </div>
+      <div class="card cat">
+        <h3>Bounded change</h3>
+        <p class="archetypes">One localized, self-contained, reversible default / prop / state change that can't reach the file's other responsibilities.</p>
+        <div class="method"><b>Verify by</b> Exercising the exact path by hand — confirm the effect and that nothing else moved.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DENY-LIST -->
+  <section id="deny">
+    <p class="eyebrow">The deterministic fence</p>
+    <h2>Some files stop the run before it starts.</h2>
+    <div class="deny">
+      <div>
+        <p class="prose">
+          Touching any of these is an automatic STOP — no reasoning, straight to a developer handoff.
+          The gate enforces it (<code>deny_hits</code>), and the model refuses to even start down the
+          path. Narrow scope <em>is</em> the safety argument.
+        </p>
+        <div class="glob-list">
+          <span class="glob">**/migrations/**</span>
+          <span class="glob">.github/**</span>
+          <span class="glob">**/*.config.*</span>
+          <span class="glob">**/.env*</span>
+          <span class="glob">**/secrets/**</span>
+          <span class="glob">package.json</span>
+          <span class="glob">*-lock.*</span>
+          <span class="glob">Gemfile</span>
+          <span class="glob">go.mod</span>
+          <span class="glob">requirements.txt</span>
+          <span class="glob">**/Dockerfile</span>
+          <span class="glob">**/*.tf</span>
+        </div>
+      </div>
+      <div class="card handoff-card">
+        <div class="kicker">Developer handoff</div>
+        <h3>A clean stop, not a dead end</h3>
+        <ol>
+          <li>The confirmed spec + acceptance criteria.</li>
+          <li>What was attempted and the diff so far.</li>
+          <li>The blocking evidence — which axis went Red, or the Layer A <code>hard_fail</code>.</li>
+          <li>A plain note to the operator: what happened, that it's not their fault, and that a developer takes it from here.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEVELOPER -->
+  <section id="dev">
+    <p class="eyebrow">For developers · extending the plugin</p>
+    <h2>Pure logic behind I/O seams.</h2>
+    <p class="prose">
+      The gate is plain JavaScript on Node built-ins — no runtime dependencies. Decision logic lives
+      in <code>lib/</code> behind injected git/gh seams so it stays unit-testable; <code>bin/pr-gate.js</code>
+      is the thin CLI that wires real I/O in. Keep that split, and keep "same input → same output."
+    </p>
+
+    <div class="grid dev-grid">
+      <pre class="tree"><span class="c"># the marketplace root</span>
+<b>.claude-plugin/</b>marketplace.json  <span class="c"># lists plugins + versions</span>
+<b>plugins/safe-pr/</b>
+├─ .claude-plugin/plugin.json  <span class="c"># manifest</span>
+├─ skills/safe-pr/<b>SKILL.md</b>    <span class="c"># the 0–13 flow spine</span>
+│  └─ reference/            <span class="c"># triggered reads:</span>
+│     ├─ rubrics.md         <span class="c">#   scoring axes</span>
+│     ├─ change-catalog.md  <span class="c">#   what's shippable</span>
+│     ├─ tests.md · gate-cli.md
+│     └─ handoff.md
+├─ <b>bin/pr-gate.js</b>          <span class="c"># Layer A CLI</span>
+├─ <b>lib/</b>                    <span class="c"># pure logic + seams</span>
+├─ <b>test/</b>                   <span class="c"># node:test, no deps</span>
+├─ config/gate.config.json  <span class="c"># deny-list + ceilings</span>
+└─ templates/pr-body.md</pre>
+
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="kicker">Ground rules</div>
+          <div class="principle"><span class="pn">01</span><p><b>Deterministic gate is ground truth.</b> Changes to <code>lib/</code>/<code>bin/</code> keep same-input→same-output. Don't move risk decisions between the script and the skill.</p></div>
+          <div class="principle"><span class="pn">02</span><p><b>No runtime dependencies.</b> Node built-ins only; never add a manifest with runtime deps. Run the suite with <code>node --test</code>.</p></div>
+          <div class="principle"><span class="pn">03</span><p><b>Config is a fence, not a risk map.</b> <code>gate.config.json</code> holds deny-list globs and hard limits — <code>max_files: 8</code>, <code>max_loc: 150</code>, <code>max_test_loc: 150</code> (product and test LOC budgeted separately). A repo drops <code>.safe-pr.config.json</code> to override.</p></div>
+          <div class="principle"><span class="pn">04</span><p><b>Flow steps are whole integers.</b> To insert a step, renumber the rest — never a fractional label. Refer to steps by name in prose, not by number.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:34px;">Versioning — required on every plugin change</h3>
+    <p class="prose" style="margin-bottom:14px;">Pick the level by change type (semver):</p>
+    <div class="semver">
+      <div class="sv patch"><div class="t">patch</div><p>Bug fixes, wording, docs, test-only, threshold tuning. No contract change.</p></div>
+      <div class="sv minor"><div class="t">minor</div><p>New backward-compatible behavior — a new gate, subcommand, or config option with a safe default.</p></div>
+      <div class="sv major"><div class="t">major</div><p>Breaking — removing / renaming a subcommand or key, or changing the gate's JSON contract.</p></div>
+    </div>
+    <p class="sync-note">
+      <b>Two files must stay in sync.</b> Bump the version in
+      <code>plugins/safe-pr/.claude-plugin/plugin.json</code> <em>and</em> the plugin's entry in
+      <code>.claude-plugin/marketplace.json</code> together — never one without the other.
+    </p>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p class="eyebrow">Get started</p>
+  <h2 style="font-size:1.5rem;">Install &amp; run</h2>
+  <div class="cmds">
+    <div class="cmd"><span class="c"># add the marketplace (owner/repo, git URL, or local path)</span></div>
+    <div class="cmd"><span class="p">/</span>plugin marketplace add &lt;owner&gt;/&lt;repo&gt;</div>
+    <div class="cmd"><span class="p">/</span>plugin install safe-pr@claude-non-dev-pr</div>
+    <div class="cmd"><span class="c"># then, in a target repo:</span></div>
+    <div class="cmd"><span class="p">/</span>safe-pr:safe-pr</div>
+  </div>
+  <p class="fine">
+    safe-pr is a skill invoked directly — there is no command wrapper (a same-named command would
+    shadow the skill and stop its body from loading). Each target repo needs a top-level
+    <code>CLAUDE.md</code> with build/run instructions and tests that run in CI per PR.
+  </p>
+</footer>
+
+<script>
+  const steps = [
+    { n: 0,  name: "Pre-flight",              kind: "hard",  layer: "a", cmd: 'node "&lt;GATE&gt;" preflight',
+      desc: "The very first output — check the tree is clean and gh is ready before anything else.",
+      stop: "Dirty tree or gh not logged in — a developer commits/stashes first." },
+    { n: 1,  name: "Ticket + branch",         kind: "hard",  layer: "a", cmd: 'node "&lt;GATE&gt;" new-branch DEV-12345 &lt;name&gt;',
+      desc: "Capture the Jira id and the change in the operator's own words, then build a convention branch off up-to-date default.",
+      stop: "No Jira ticket, or base not up to date." },
+    { n: 2,  name: "Describe + evidence",     kind: "",      layer: "b", cmd: null,
+      desc: "Capture a screenshot, mockup, or written spec of the desired result — the “after” reference for the PR body." },
+    { n: 3,  name: "Confirm spec",            kind: "block", layer: "b", cmd: null,
+      desc: "Reflect the request back as a plain-language spec + acceptance criteria; wait for the operator's explicit, quoted confirmation.",
+      stop: "No confirmation yet — no code, edits, or git writes may happen." },
+    { n: 4,  name: "Gate 1 — assess the plan", kind: "gate", layer: "b", cmd: null,
+      desc: "Score all three axes on the plan, name the catalog section, and record whether a test is expected. No diff exists yet — pure reasoning.",
+      stop: "Aggregate Red — hand off; a non-dev can never override a Red." },
+    { n: 5,  name: "Ready-to-run environment", kind: "gate", layer: "b", cmd: null,
+      desc: "Run the repo's documented setup command so dependencies match the checked-out branch — before editing anything.",
+      stop: "Setup fails and re-running doesn't fix it — hand off (never hand-edit manifests)." },
+    { n: 6,  name: "Execute",                 kind: "",      layer: "a", cmd: 'node "&lt;GATE&gt;" check-paths &lt;path…&gt;',
+      desc: "Deny-list pre-check first, then implement the change inside the named catalog section.",
+      stop: "check-paths returns denied: true, or it needs rippling logic — hand off." },
+    { n: 7,  name: "Tests — honor the convention", kind: "gate", layer: "b", cmd: null,
+      desc: "If the repo expects a test, author or adjust it inside real test files and run the relevant subset to green. If not, record why.",
+      stop: "Needs new fixtures/abstractions, editing test config, or many existing tests adjusted — hand off." },
+    { n: 8,  name: "Blast-radius → checklist", kind: "", layer: "b", cmd: null,
+      desc: "Find consumers of the touched symbols, cluster them, and emit a regression checklist with a “could not determine” section.",
+      stop: "Surface can't be bounded to a list — Risk = Red." },
+    { n: 9,  name: "Verification loop",       kind: "",      layer: "b", cmd: null,
+      desc: "Set up the easiest way for the operator to observe the change, and check the direct change and every checklist item — iterate until they're happy." },
+    { n: 10, name: "Draft PR",                kind: "",      layer: "a", cmd: 'gh pr create --draft --body-file …',
+      desc: "Push and open a draft PR built from the template, filling every placeholder.",
+      stop: "About to create without --draft — the flag is required." },
+    { n: 11, name: "Gate 2 — assess the diff", kind: "gate", layer: "a", cmd: 'node "&lt;GATE&gt;" scan-diff  ·  ci-status &lt;pr&gt;',
+      desc: "Scan the real diff, wait for stable-green CI, and re-score all three axes on the actual change — worst signal wins.",
+      stop: "Any deny hit / over ceiling / hard_fail, or CI not stable-green." },
+    { n: 12, name: "Verdict",                 kind: "gate", layer: "b", cmd: null,
+      desc: "Aggregate the Gate 2 scorecard: Red stops (stays a draft, hand off); Yellow flags for closer review; Green proceeds.",
+      stop: "Red — do not mark ready; leave it a draft." },
+    { n: 13, name: "Mark ready",              kind: "",      layer: "a", cmd: 'gh pr ready &lt;pr&gt;  ·  re-run ci-status',
+      desc: "Flip to ready, re-watch CI (un-drafting can trigger new checks), and embed the scorecard, spec, and checklist in the body.",
+      stop: "Post-ready CI didn't settle — tell the operator a developer should look." },
+  ];
+
+  const badgeFor = { hard: '<span class="badge hard">Hard gate</span>', gate: '<span class="badge gate">Gate</span>', block: '<span class="badge block">Blocking</span>' };
+
+  const html = steps.map(s => {
+    const cls = s.kind === "hard" ? "is-hard" : (s.kind ? "is-gate" : "");
+    const badge = badgeFor[s.kind] || "";
+    const cmd = s.cmd
+      ? `<div class="step-cmd ${s.layer === 'b' ? 'b' : ''}"><span class="lz">${s.layer === 'a' ? '■' : '▢'}</span>${s.cmd}</div>`
+      : `<div class="meta-line"><span class="dot b"></span><span style="font-family:var(--mono);font-size:11px;color:var(--ink-faint);letter-spacing:.04em;">LAYER B · reasoning</span></div>`;
+    const stop = s.stop ? `<div class="step-stop"><span class="lbl">Stop if</span><span>${s.stop}</span></div>` : "";
+    return `
+      <div class="step ${cls}">
+        <div class="rail"><div class="n">${s.n}</div><div class="line"></div></div>
+        <div class="step-body">
+          <div class="step-head"><h3>${s.name}</h3>${badge}</div>
+          <p>${s.desc}</p>
+          ${cmd}
+          ${stop}
+        </div>
+      </div>`;
+  }).join("");
+
+  document.getElementById("flowList").innerHTML = html;
+</script>
